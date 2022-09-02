@@ -215,4 +215,55 @@ sudo -i
 > docker stop `docker ps -a -q`
 > docker rm `docker ps -a -q`
 
+# MySQL 서비스 구축해보기
+
+https://hub.docker.com/_/mysql
+
+환경 변수 사용해 데이터 전달하기
+> docker run -d --name nx -e env_name=test1234 nginx
+> printenv
+
+> docker run --name some-mysql -e MYSQL_ROOT_PASSWORD='test1234' -d mysql
+> docker exec -it ms mysql -u root -p
+ 
+# 볼륨 마운트하여 Jupyter LAB 서비스 구축
+
+https://hub.docker.com/r/jupyter/datascience-notebook  
+
+볼륨 마운트 옵션 사용해 로컬 파일 공유하기  
+> docker run -v {호스트 경로}:{컨테이너 내 경로}:{권한}
+
+- 권한 종류
+  - ro : 읽기 전용
+  - rw : 읽기 및 쓰기
+
+Nginx 로 볼륨 마운트하기 예제  
+
+~~~
+docker run -d -p 80:80 --rm --name nx -v /var/www:/usr/share/nginx/html:ro nginx
+~~~
+
+# 도커 이미지 푸시
+
+도커 이미지 태그 변경 후 푸시
+
+~~~
+docker login
+docker tag {name} {DockerHubId/name}:{version}
+ex) docker tag test {jjunpro/test}
+docker images
+docker push {DockerHubId/name}:{version}
+~~~
+
+도커 이미지 히스토리 확인  
+> docker history {DockerHubId/name}:{version}
+
+# 프라이베이트 레지스트리 구현 및 사용
+
+private registry 만들기
+> docker run -d --name docker-registry -p 5000:5000 registry
+
+프라이베이트 레지스트리에 이미지 푸시하기
+> docker tag {name} {ip}:{port}/{name}
+> docker push {ip}:{port}/{name}
 
