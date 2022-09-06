@@ -309,3 +309,54 @@ private registry 만들기
 컨테이너 런타임: 컨테이너를 실행하는 도커  
 Kubelet: API 서버와 통신하고 노드에서 컨테이너를 관리  
 쿠버네티스 서비스, 프록시: 애플리케이션 간에 네트워크 트래픽을 분산 및 연결
+
+# 쿠버네티스
+
+우분투 vm VirtualBox 18 버전 접속 후
+
+> apt install vim -y
+> apt update && apt install docker.io -y
+
+쿠버네티스 설치  
+
+https://kubernetes.io/ko/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+
+apt 패키지 색인을 업데이트하고, 쿠버네티스 apt 리포지터리를 사용하는 데 필요한 패키지를 설치한다.
+~~~
+sudo apt-get update
+sudo apt-get install -y apt-transport-https ca-certificates curl
+~~~
+
+구글 클라우드의 공개 사이닝 키를 다운로드 한다.
+~~~
+sudo curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
+~~~
+
+쿠버네티스 apt 리포지터리를 추가한다.
+~~~
+echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+~~~
+
+apt 패키지 색인을 업데이트하고, kubelet, kubeadm, kubectl을 설치하고 해당 버전을 고정한다.
+~~~
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
+~~~
+
+설치 완료 후 스왑의 비활성화가 필요합니다.
+
+리부팅 후 다시 설정이 초기화됩니다.
+> swapoff -a
+
+영구적으로 적용되는 설정
+> sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+
+docker info | grep -i group    
+cgroup 정보를 변경합니다.
+
+> /etc/docker/daemon.json
+~~~
+  "exec-opts": ["native.cgroupdriver=systemd"]
+~~~
+systemctl restart docker 혹은 service docker restart
