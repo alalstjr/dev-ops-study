@@ -357,6 +357,90 @@ cgroup 정보를 변경합니다.
 
 > /etc/docker/daemon.json
 ~~~
-  "exec-opts": ["native.cgroupdriver=systemd"]
+  { "exec-opts": ["native.cgroupdriver=systemd"] }
 ~~~
 systemctl restart docker 혹은 service docker restart
+
+# 우분투 스테틱 ip
+
+ubuntu netplan static ip  
+
+https://gamball.tistory.com/entry/Ubuntu-1804-%EA%B3%A0%EC%A0%95-IP-%EC%84%A4%EC%A0%95
+
+> ifconfig
+
+혹은
+
+> ip link
+
+~~~
+...
+enp0s3: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 10.0.2.15  netmask 255.255.255.0  broadcast 10.0.2.255
+        inet6 fe80::4a53:186f:4eae:131b  prefixlen 64  scopeid 0x20<link>
+        ether 08:00:27:8e:46:4d  txqueuelen 1000  (Ethernet)
+        RX packets 629054  bytes 940153727 (940.1 MB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 144341  bytes 8985825 (8.9 MB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+...
+~~~
+
+이렇게 출력되는데 [enp0s3] 이것이 네트워크 드라이버 명이다  
+이를 변경할 ethernets 에 명시해주면 된다.
+
+~~~
+# Let NetworkManager manage all devices on this system
+network:
+  version: 2
+  renderer: NetworkManager
+  ethernets:
+        enp0s3:
+                dhcp4: no
+                dhcp6: no
+                addresses: [10.0.2.154/24]
+                gateway4: 10.0.2.2
+                nameservers:
+                        addresses: [8.8.8.8,8.8.4.4]
+~~~
+
+10.0.0.1은 기본 게이트웨이 주소 또는 로컬 클라이언트 IP 주소 일 수 있습니다.  
+10.0.0.1 IP 주소 는 클라이언트 장치에서 사용되거나 네트워크 하드웨어 에 기본 IP 주소로 할당되는 사설 IP 주소 입니다.  
+10.0.0.1은 라우터가 일반적으로 192.168.1.1 또는 192.168.0.1 처럼 192.168.xx 시리즈의 주소를 대신 사용하는 홈 네트워크 보다 비즈니스 컴퓨터 네트워크 에서 더 일반적으로 볼 수 있습니다.  
+
+> netplan apply 
+
+명령어로 적용해주고 ifconfig 해주면 변경된 ip 를 확인할 수 있다.
+
+# 클러스터 구성 및 쿠버네티스 테스트
+
+> kubeadm init
+
+마스터 노드에서만 실행을 합니다.  
+마스터 노드에 필요한 기능을 세팅하는 작업을 합니다.  
+
+완료 후 regular user 등록을 시도합니다.
+
+~~~
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+~~~
+
+다음은 pod network 구성하는 방법
+
+~~~
+export KUBECONFIG=/etc/kubernetes/admin.conf
+~~~
+
+워커노드를 join 하는방법  
+아래 코드를 워커 노드에서 실행을 합니다.
+
+~~~
+kubeadm join 10.0.2.154:6443 --token x8nn0j.9r0xdgaf9dp0qy1o \
+	--discovery-token-ca-cert-hash sha256:2a000d4e02dfe2334506ded05c3b8ebf60bbf9ba88015f7350e61864e4a21a92 
+~~~
+
+새로운 토큰을 발행하려면 아래 명령어를 실행하라
+
+> kubeadm token create --print-join-command
