@@ -430,3 +430,92 @@ curl 127.0.0.1:30794
 스케일링 조절하기
 
 > kubectl scale deploy nx --replicas=5
+
+# 쿠버네티스에서 실행 가능한 컨테이너 작성
+
+마스터 노드에 파일 생성
+
+main.go
+~~~
+package main
+
+import (
+    "fmt"
+    "github.com/julienschmidt/httprouter"
+    "net/http"
+    "log"
+    "os"
+)
+
+func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+    hostname, err := os.Hostname()
+    if err == nil {
+        fmt.Fprint(w, "Welcome! " + hostname +"\n")
+    } else {
+        fmt.Fprint(w, "Welcome! ERROR\n")
+    }
+}
+
+func main() {
+    router := httprouter.New()
+    router.GET("/", Index)
+
+    log.Fatal(http.ListenAndServe(":8080", router))
+}
+~~~
+
+~~~
+yum install golang
+go env -w GO111MODULE=auto
+go get github.com/julienschmidt/httprouter
+go build main.go
+mkdir http_go
+mv main ./http_go/
+cd http_go
+vim dockerfile
+~~~
+
+~~~
+# 아래 3줄 코드는 빌드할때 실행이 됩니다.
+FROM golang:1.11
+WORKDIR /usr/src/app
+COPY main /usr/src/app
+
+# 실제 컨테이너가 실행될 때 실행
+CMD ["/usr/src/app/main"]
+~             
+~~~
+
+~~~
+# 도커 파일 만들고 hub 에 배포하기
+docker build -t http-go .
+docker run -d -p 8080:8080 --rm http-go
+docker tag http-go jjunpro/http-go
+docker login
+docker push jjunpro/http-go
+
+# 아래 명령어로 쿠버네티스 배포가 가능합니다.
+kubectl create deploy http-go --image=jjunpro/http-go
+~~~
+
+## 포드 (pod) 란?
+
+쿠버네티스는 kubectl get container 와 같이 컨테이너를 취급하지 않는다.  
+대신 여러 위치에 배치된 컨테이너 개념인 컨테이너 그룹을 포드(Pod) 라는 개념을 사용  
+
+포드의 특징  
+포드는 하나 이상의 밀접하게 관련된 컨테이너로 구성된 그룹  
+동일한 리눅스 네임스페이스와 동일한 워커 노드에서 항상 함께 실행  
+각 포드는 애플리케이션을 실행하는 자체 `IP, 호스트 이름, 프로세스 등이 있는 별도의 논리적 시스템`  
+
+~~~
+# 조회하기
+kubectl get deploy,rs,pod
+~~~
+
+`deploy 가 필요한 이유는 업데이트 관리`를 합니다.  
+일종의 설정,정보 파일이라고 보면 됩니다.  
+
+`rs 는 포드의 개수를 유지하는 역할`을 합니다.  
+
+`pod 컨테이너의 그룹`  
