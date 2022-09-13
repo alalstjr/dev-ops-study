@@ -314,6 +314,51 @@ private registry 만들기
 Kubelet: API 서버와 통신하고 노드에서 컨테이너를 관리  
 쿠버네티스 서비스, 프록시: 애플리케이션 간에 네트워크 트래픽을 분산 및 연결
 
+# 쿠버네티스 명령어
+
+모든 포드와 관련된 서비스 초기화 삭제
+> kubectl delete all --all
+
+pods 스케일링
+> kubectl scale deployment {이름} --replicas=3
+
+이미지 만들기
+> kubectl create deploy {서브이름} --image={이름}
+
+외부 노출하기
+> kubectl expose deploy {서브이름} --type=NodePort --port=80 --target-port=80
+
+조회 명령어
+> kubectl get deploy,pod,svc
+
+조회 명령어 pod 상세보기
+> kubectl get pods -o wide
+
+pod 삭제 & 모두삭제
+> kubectl delete pod
+> kubectl delete pod --all
+
+쿠버네티스에 연결된 노드 확인
+> kubectl get nodes
+
+쿠버네티스 파일 실행
+> kubectl create -f {파일이름}
+
+쿠버네티스 pod 진행상황 상세보기
+> kubectl describe pod {pod 이름}
+
+yaml 파일로 포드 디스크립터 생성
+> kubectl create -f go-http-pod.yaml
+
+yaml 파일로 포드 디스크립터 삭제
+> kubectl delete -f go-http-pod.yaml
+
+로그 확인
+> kubectl logs http-go
+
+변수 넣어주기
+> kubectl annotate pod {pod 이름} {key}={value}
+
 # 쿠버네티스
 
 우분투 vm VirtualBox 18 버전 접속 후
@@ -519,3 +564,76 @@ kubectl get deploy,rs,pod
 `rs 는 포드의 개수를 유지하는 역할`을 합니다.  
 
 `pod 컨테이너의 그룹`  
+
+# 디플로이먼트, 포드, 서비스가 동작하는 방식 이해
+
+실제로 포드도 직접 만들지 않음  
+kubectl create deploy 명령을 실행하면 디플로이먼트가 생성  
+디플로이먼트가 실제 포드 객체를 생성  
+해당 디플로이먼트가 관리하는 포드의 포트 8080을 노출하라고 명령 필요  
+
+1. 디플로이먼트 : http-go (Replicas: 1) 이를 rs 라고 지칭 rs 가 포드를 만듭니다.
+2. 포드 : http-go-xxxx ip: 10.0.0.1 -> 컨테이너 포드의 IP 는 언제든지 변경할 수 있음
+3. 이렇게 안쪽에서 구성된 컨테이너를 외부로 노출시켜야 합니다. 
+4. 그리하여 `서비스 라는 객체를 활용`합니다. expose 
+5. 서비스 : http-go 내부 ip : 10.1.1.1 바뀌지않음
+
+서비스의 역할  
+포드는 일시적이므로 언제든지 사라질 가능성 존재  
+`포드가 다시 시작되는 경우에는 언제든 IP 와 ID 변경됨`   
+`서비스는 변화하는 포드 IP 주소의 문제를 해결`하고 단일 IP 및 포트 쌍에서 여러 개의 포드 노출  
+서비스가 생성되면 정적 IP를 얻게 되고 서비스의 수명 내에서는 변하지 않음  
+클라이언트는 포드에 직접 연결하는 대신 IP 주소를 통해 서비스에 연결  
+서비스는 포드 중 하나로 연결을 포워딩  
+`포드가 만약 고장이 나면 고치지 않고 새로 하나 만들어 빈틈없이 서비스가 돌아가도록 합니다.`
+
+~~~
+kubectl expose deployment http-go --type=NodePort --port=80 --target-port=8080
+kubectl expose deployment http-go --type=LoadBalancer --port=80 --target-port=8080
+
+kubectl scale deployment http-go --replicas=3
+kubectl get svc,pods
+~~~
+
+만약 서비스를 삭제하려면 ? 
+
+> kubectl delete svc {서비스 이름}
+
+# POD
+
+YAML 로 포드 디스크립터 만들기  
+kubectl 실행 명령으로 간단한 리소스 작성 방법도 가능하지만 일부 항목에 대해서만 가능하며 저장이 용의하지 않음  
+모든 쿠버네티스 객체를 YAML 로 정의하면 버전 제어 시스템에 저장 가능  
+모든 API 에 대한 내용은 http://kubernetes.io/docs/reference/
+
+포드의 정의  
+
+- 포드 정의 구성 요소
+  - apiVersion: 쿠버네티스 api 의 저번을 가리킴
+  - kind: 어떤 리소스 유형인지 결정 (포드 레플리카컨트롤러, 서비스 등)
+  - 메타데이터: 포드와 관련된 이름, 네임스페이스, 라벨, 그 밖의 정보 존재
+  - 스펙: 컨테이너, 볼륨 등의 정보
+  - 상태: 포드의 상태, 각 컨테이너의 설명 및 상태, 포드 내부의 IP 및 그 밖의 기본 정보 등
+  
+~~~
+cat << EOF > /root/go-http-pod.yaml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: http-go
+spec:
+  containers:
+  - name: http-go
+    image: jjunpro/http-go
+    ports:
+    - containerPort: 8080
+    
+EOF
+~~~
+
+> kubectl create -f go-http-pod.yaml
+
+삭제는 
+
+> kubectl delete -f go-http-pod.yaml
