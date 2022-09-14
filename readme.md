@@ -359,6 +359,18 @@ yaml 파일로 포드 디스크립터 삭제
 변수 넣어주기
 > kubectl annotate pod {pod 이름} {key}={value}
 
+레플리케이션 확인하기
+> kubectl get rc
+
+레플리케이션 스케일링
+> kubectl scale rc {이름} --replicas=5
+
+레플리케이션 수정
+> kubectl edit rc {이름}
+
+레플리케이션 파일로 수정
+> kubectl apply -f {파일이름}
+
 # 쿠버네티스
 
 우분투 vm VirtualBox 18 버전 접속 후
@@ -844,4 +856,39 @@ spec:
 
 > kubectl get pod --show-labels
 
+# 레플리케이션 컨트롤러
 
+포드가 항상 실행되도록 유지하는 쿠버네티스 리소스  
+노드가 클러스터에서 사라지는 경우 해당 포드를 감지하고 대체 포드 생성  
+실행 중인 포드의 목록을 지속적으로 모니터링으로 하고 '유형'의 실제 포드 수가 원하는 수와 항상 일치하는지 확인
+
+레플리케이션 : 데이터 저장과 백업하는 방법과 관련이 있는 데이터를 호스트 컴퓨터에서 다른 컴퓨터로 복사하는 것
+
+레플리케이션컨트롤러의 장점  
+포드가 없는 경우 새 포드를 항상 실행  
+노드에 장애 발생 시 다른 노드에 복제본 생성  
+수동, 자동으로 수평 스케일링
+
+~~~
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: nginx
+spec:
+  replicas: 3
+  selector:
+    app: nginx
+  template:
+    metadata:
+      name: nginx
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        ports:
+        - containerPort: 80
+~~~
+
+> kubectl get rc
