@@ -637,3 +637,211 @@ EOF
 삭제는 
 
 > kubectl delete -f go-http-pod.yaml
+
+# 라이브니스, 레디네스 프로브 구성
+
+- Liveness, Readiness and Startup Probes
+  - Liveness Probe
+    - 컨테이너 살았는지 판단하고 다시 시작하는 기능
+    - `컨테이너의 상태를 스스로 판단하여 교착 상태에 빠진 컨테이너를 재시작` 
+    - 버그가 생겨도 높은 가용성을 보임
+  - Readiness Prove
+    - 포드가 준비된 상태에 있는지 확인하고 정상 서비스를 시작하는 기능
+    - `포드가 적절하게 준비되지 않은 경우 로드밸런싱을 하지 않음`
+  - Startup Probes
+    - 애플리케이션의 시작 시기 확인하여 가용성을 높이는 기능
+    - Liveness 와 Readiness 의 기능을 비활성화
+
+## 라이브니스, 레디네스, 프로브 구성
+
+https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+
+### Liveness 커맨드 설정 - 파일 존재 여부 확인
+
+~~~
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    test: liveness
+  name: liveness-exec
+spec:
+  containers:
+  - name: liveness
+    image: registry.k8s.io/busybox
+    args:
+    - /bin/sh
+    - -c
+    - touch /tmp/healthy; sleep 30; rm -f /tmp/healthy; sleep 600
+    livenessProbe:
+      exec:
+        command:
+        - cat
+        - /tmp/healthy
+      initialDelaySeconds: 5
+      periodSeconds: 5
+~~~
+
+liveness-exec 라는 컨테이너 생성  
+[ touch /tmp/healthy; sleep 30; rm -f /tmp/healthy; sleep 600 ]
+파일 생성 후 30 초 후 파일을 삭제  
+[ livenessProbe ] pod 가 살아있는지 계속 정검해주는 역할을 합니다.  
+exec 실행해라 command 커멘드를 
+
+### Liveness 웹 설정 - Http 요청 확인
+
+서버 응답 코드가 200이상 400미만 컨테이너 유지 그외는 재시작
+
+~~~
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    test: liveness
+  name: liveness-http
+spec:
+  containers:
+  - name: liveness
+    image: registry.k8s.io/liveness
+    args:
+    - /server
+    livenessProbe:
+      httpGet:
+        path: /healthz
+        port: 8080
+        httpHeaders:
+        - name: Custom-Header
+          value: Awesome
+      initialDelaySeconds: 3
+      periodSeconds: 3
+~~~
+
+### 라이브니스, 레디네스 프로브 구성
+
+- Readiness TCP 설정
+  - 준비 프로브는 8080 포트를 검사
+  - 5초 후부터 검사 시작
+  - 검사 주기는 10초
+  - 서비스를 시작해도 된다.
+- Liveness TCP 설정
+  - 활성화 프로브는 8080 포트를 검사
+  - 15초 후 부터 검사 시작
+  - 검사 주기는 20초
+  - 컨테이너를 재시작하지 않아도 된다.
+
+~~~
+apiVersion: v1
+kind: Pod
+metadata:
+  name: liveness-exec
+  labels:
+    app: goproxy
+spec:
+  containers:
+  - name: goproxy
+    image: registry.k8s.io/goproxy:0.1
+    ports:
+    - containerPort: 8080
+    readinessProbe:
+      tcpSocket:
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 10
+    livenessProbe:
+      tcpSocket:
+        port: 8080
+      initialDelaySeconds: 15
+      periodSeconds: 20
+~~~
+
+[ initialDelaySeconds ] 몇 초 후부터 [ periodSeconds ] 몇 초 간격으로 검사한다.  
+
+### 라이브니스, 레디네스 프로브 구성
+
+- Statup Probe
+  - `시작할 때까지 검사를 수행`
+  - http 요청을 통해 검사
+  - 30번을 검사하며 10초 간격으로 수행
+  - 300(30*10) 초 후에도 포드가 정상 동작하지 않는 경우 종료
+  - 300초 동안 포드가 정상 실행되는 시간을 벌어줌
+
+~~~
+ports:
+- name: liveness-port
+  containerPort: 8080
+  hostPort: 8080
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: liveness-port
+  failureThreshold: 1
+  periodSeconds: 10
+
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: liveness-port
+  failureThreshold: 30
+  periodSeconds: 10
+~~~
+
+[ startupProbe ] 가 실행되고 있는 경우에는 [ livenessProbe ] 가 실행되지 않고 있는 환경  
+[ periodSeconds ] 몇 초간 [ failureThreshold ] 몇 번 검사
+
+# 레이블과 셀렉터
+
+- 레이블이란?
+  - 모든 리소스를 구성하는 매우 간단하면서도 강력한 쿠버네티스 기능
+  - 리소스에 처부하는 임의의 키/값 쌍 (예 app:test)
+  - 레이블 셀렉터를 사용하면 각종 리소스를 필터링하여 선택할 수 있음
+  - 리소스는 한 개 이상의 레이블을 가질 수 있음
+  - 리소스를 만드는 시점에 레이블을 첨부
+  - 기존 리소스에도 레이블의 값을 수정 및 추가 가능
+  - 모든 사람이 쉽게 이해할 수 있는 체계적인 시스템을 구축 가능
+    - app: 애플리케이션 구성 요소, 마이크로서비스 유형 지정
+    - rel:  애플리케이션의 버전 지정
+
+- 새로운 레이블을 추가할 때는 label 명령어를 사용
+  - kubectl label pod http-go-v2 test=foo
+- 기존의 레이블을 수정할 때는 --overwirte 옵션을 주어서 실행
+  - kubectl label pod http-go-v2 rel=beta
+    - error
+  - kubectl label pod http-go-v2 rel=beta --overwrite
+    - success
+- 레이블 삭제
+  - kubectl label pod http-go-v2 rel-
+- 레이블 보여주기
+  - kubectl get pod --show-labels
+- 특정 레이블 컬럼으로 확인
+  - kubectl get pod -L app,rel
+
+## 레이블로 필터링하여 검색
+
+> kubectl get pod --show-labels -l 'env'
+> kubectl get pod --show-labels -l '!env'
+> kubectl get pod --show-labels -l 'env!=test'
+> kubectl get pod --show-labels -l 'env!=test,rel=beta'
+
+간단 예제
+
+~~~
+apiVersion: v1
+kind: Pod
+metadata:
+  name: http-go
+  labels:
+        creation_method: manual
+        env: prod
+spec:
+  containers:
+  - name: http-go
+    image: jjunpro/http-go
+    ports:
+    - containerPort: 80
+      protocol: TCP
+~~~
+
+> kubectl get pod --show-labels
+
+
