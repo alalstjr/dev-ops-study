@@ -328,6 +328,9 @@ pods 스케일링
 외부 노출하기
 > kubectl expose deploy {서브이름} --type=NodePort --port=80 --target-port=80
 
+전체 조회 명령어
+> kubectl get all
+
 조회 명령어
 > kubectl get deploy,pod,svc
 
@@ -370,6 +373,99 @@ yaml 파일로 포드 디스크립터 삭제
 
 레플리케이션 파일로 수정
 > kubectl apply -f {파일이름}
+
+레플리카셋 조회
+> kubectl get rs
+
+레플리카셋 조회
+> kubectl describe rs {name}
+
+레플리카셋 조회
+> kubectl delete rs {name}
+
+# Kubernetes 구조
+
+Kubernetes는 컨테이너화된 애플리케이션을 자동으로 배포, 스케일링 및 관리해주는 시스템입니다.  
+
+## 클러스터
+
+Kubernetes 환경에서 가장 큰 구조는 Cluster입니다.  
+쿠버네티스 백서에서는 Cluster를 아래와 같이 정의하고 있습니다.
+
+`클러스터란 컨테이너화된 애플리케이션을 실행하는 노드라고 하는 워커 머신의 집합. 모든 클러스터는 최소 한 개의 워커 노드를 가진다.`
+
+Kubernetes는 `Master Node(Control Plane)` 와 `Worker Node` 로 이루어져 있으며, 각 노드 내부의 다양한 `Component를 통해 동작`합니다.
+
+Kubernetes Cluster는 `api-server, etcd, scheduler, controller` 등의 
+컴포넌트가 설치된 `Master Node(Controle Plane)와, kubelet과 kube-proxy,` 컨테이너 런타임이 설치된 `Worker Node` 로 구성됩니다.
+
+거기에 추가적으로 `Master Node의 api-server와 통신하며 Cluster`에 명령을 내릴 서버가 구성되어야 하는데, 
+`Master Node` 내부에 구성할 수도 있고 로컬 PC에 구성할 수도 있습니다.
+
+## 호스트 컴퓨터(로컬 PC)
+
+Kubernetes 관리자는 kubectl을 이용해서 Kubernetes Cluster 에 명령을 내릴 수 있습니다.  
+kubectl은 KUBECONFIG 환경변수를 참조해 명령을 내릴 클러스터의 정보를 인식합니다.  
+KUBECONFIG 환경변수가 정의되어 있지 않다면 $HOME/.kube/config 파일을 참고합니다.  
+
+Master Node는 단일로 구성할 수 있지만 백업을 위해 여러대의 서버를 Master Node로 구성할 수 있으며, 다중 구성 시 항상 홀수개로 구성되어야 합니다.
+
+## Master Node
+
+Master Node의 핵심 컴포넌트는 api-server, etcd, Scheduler, Controller로 구성되어 있습니다.  
+구성도상에 있는 Cloud Controller는 AWS, Azure, GCP와 같은 Public Cloud의 서버, 스토리지, 로드밸런서 등의 자원을 Kubernetes가 사용할 수 있도록 돕습니다.  
+
+Kubernetes 선언적인(declarative) 구조를 가지고 있습니다.  
+각 요소가 추구하는 상태(desired status)를 선언하면 현재 상태(current status)와 비교하여 맞는지 점검하고, 추구하는 상태에 맞추려고 노력하는 방식으로 설계되어 있습니다.  
+
+이렇게 api-server를 통해 선언한 추구하는 상태값들을 저장하는 장소가 etcd입니다.  
+
+- api-server
+  - Kubernetes 클러스터의 중심 역할을 하는 통로
+  - Kubernetes api를 사용하도록 요청을 받고 요청이 유효한지 검사
+  - kubectl이 설치된 로컬 머신에서 kubectl 명령어 수행시 문법, 권한 검사
+  - api-server와 etcd는 거의 한 몸으로 움직이게 설계됨
+- etcd
+  - key-value 타입 저장소
+  - 구성 요소들의 상태 값이 모두 저장되는 곳
+  - etcd 외에 다른 구성 요소들은 상태값을 관리하지 않으므로 etcd를 잘 백업해두면 장애가 발생해도 etcd를 통해 쿠버네티스 클러스터 복구 가능
+  - 분산 저장이 가능함, 복제해 여러 곳에 두면 하나의 etcd가 장애가 나도 시스템 가용성 확보
+- Scheduler
+  - Pod를 실행할 노드 선택
+- Controller
+  - Pod를 관찰하여 선언한 개수를 보장
+  - Addon Component
+  - Container Runtime(Docker, Containerd, Rocket 등)
+  - Core DNS
+  - CNI
+  - Dashboard
+  - ELK, EFK, Datadog 등 로깅 컴포넌트
+
+## Worker Node
+
+Worker Node 는 실제 컨테이너들이 배포되는 서버들입니다.  
+관리자는 Pod를 배포할 때 어떤 Worker Node에 Pod를 배포할지 선택할 수도 있지만,  
+일반적으로는 scheduler에 의해 배포 대상 Worker Node가 선택됩니다.  
+
+워커노드의 핵심 컴포넌트들은 kubelet, kube-proxy, Container runtime(Docke 등)이 있습니다.
+
+- kubelet
+  - 모든 노드에서 실행되는 Kubernetes 에이전트
+  - 데몬 형태로 동작
+  - c-Advisor 모니터링 툴이 들어있음
+  - 워커노드에서 동작중인 kubelet이 정지되면 Container runtime에 요청을 보내는 역할을 수행해주는 컴포넌트가 정지되었으므로 Pod 생성, 삭제 등이 해당 노드에서 정상적으로 수행되지 않음
+- kube-proxy
+  - Kubernetes의 network 동작을 관리
+  - iptables rule을 구성
+  - kube-proxy 서비스가 중단된 경우 네트워킹이 제대로 이루어지지 않음
+  - Cluster IP를 통해 WEB 등 서비스 요청시 오류 발생
+  - Container runtime
+- 컨테이너를 실행하는 엔진
+  - docker, containerd, runc 등
+  - profile
+
+
+[출처] https://velog.io/@squarebird/Kubernetes-Kubernetes-%EA%B5%AC%EC%A1%B0
 
 # 쿠버네티스
 
@@ -892,3 +988,238 @@ spec:
 ~~~
 
 > kubectl get rc
+
+
+# 레플리카셋과 디플로이먼트 란?
+
+쿠버네티스는 어떻게 Pod의 개수를 보장할까?  
+Kubernetes 시리즈의 글을 처음 작성할 때, Kubernetes에 대해서  
+`"컨테이너화된 애플리케이션을 자동으로 배포, 스케일링 및 관리해주는 시스템"`  
+이라고 정의했습니다.  
+
+그럼 Kubernetes는 어떻게 배포할 Container를 선택하고, 갯수를 선택하고 Deploy와 Scaling까지 관리해 주는걸까요?
+
+## Controller
+
+Kubernetes 구조글을 보면 Kubernetes는 여러 컴포넌트들의 상호작용을 통해 동작합니다.  
+그 중에서도 Cluster의 Pod들을 관찰하여 관리자가 선언한 Pod의 갯수를 보장해주는 기능을 Controller들이 수행해주고, 오늘 주제인 Replica Set과 Deployment가 이 Controller의 한 종류입니다.
+
+### Controller 역할
+
+컨테이너를 감시하고 수를 보장해주는 Controller에는 크게 4가지 역할이 있습니다.
+
+- Auto Healing
+  - Pod 또는 Pod이 실행되고 있는 Node에 문제가 생겼을 경우 자동으로 복구하는 기능
+  - ex) ReplicaSet, DaemonSet
+- Software Update
+  - Pod을 업데이트 하는 기능, 롤백 기능도 제공
+  - ex)Deployment
+- Auto Scaling
+  - Pod의 리소스가 부족할 때 Pod을 추가적으로 생성하는 기능
+- Job
+  - 일시적인 작업을 위해 필요한 순간에만 Pod을 만들었다가 삭제할 수 있는 기능
+  - ex) job, cron job
+
+## Replica Set
+
+Replica Set은 Pod의 숫자를 보장해주는 Controller입니다.  
+아래는 Kubernetes백서의 Replica Set 문서에서 가져온 yaml파일 입니다.
+
+~~~
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: frontend
+  labels:
+    app: guestbook
+    tier: frontend
+spec:
+  # 케이스에 따라 레플리카를 수정한다.
+  replicas: 3
+  selector:
+    matchLabels:
+      tier: frontend
+  template:
+    metadata:
+      labels:
+        tier: frontend
+    spec:
+      containers:
+      - name: php-redis
+        image: gcr.io/google_samples/gb-frontend:v3
+~~~
+
+코드를 보면 ReplicaSet 오브젝트를 선언하고 있으며,  
+ReplicaSet은 3개의 Replicas로 구성되어 있습니다.  
+이는 아래 template에 정의한 Pod가 3개 배포된다는 의미입니다.  
+
+template을 보면 배포될 Pod들은 tier:frontend 라는 Labels을 가지고 있고,  
+Replica Set은 spec.selector을 통해 tier:frontend 라는 Labels을 가지고 있는 Pod들의 갯수를 보장해주게 됩니다.  
+
+### Replica Set의 단점
+
+Replica Set을 이용하면 Pod의 숫자가 보장되기 때문에 관리자가 원하는 어플리케이션을 안정적으로 배포할 수 있습니다.  
+하지만, 시간이 흐르게 되면 해당 어플리케이션을 업그레이드하여 배포해야하는 경우가 생기게 되는데, Replica Set은 이런 업데이트에 관한 기능을 제공하지 않습니다.  
+이를 해결하기위해 사용하는 것이 Deployment라는 오브젝트입니다.
+
+## Deployment
+
+Kubernetes 백서에는 Deployment의 역할에 대해
+
+`"파드와 레플리카셋(ReplicaSet)에 대한 선언적 업데이트를 제공한다"`
+
+라고 정의 되어있습니다.
+
+이전에도 설명했듯이 Kubernetes는 선언적으로 동작합니다.  
+스펙을 선언하면 해당 스펙에 맞는 상태로 변화시키려고 하는 특징이 있습니다.  
+
+Deployment는 Pod와 ReplicaSet에 대한 선언적 업데이트를 제공합니다.  
+하위에 ReplicaSet을 제어하고, ReplicaSet이 하위의 Pod을 제어하는 구조이며,  
+Deployment가 ReplicaSet을 제어하므로, 관리자는 Deployment 하단의 ReplicaSet을 직접 관리하면 안됩니다.  
+어차피 Deployment에 선언해놓은대로 돌아오기 때문입니다.  
+
+위의 사진에서 보다시피 Deployment는 V1, V2, V3처럼 ReplicaSet이 지원하지 못했던 업데이트에 관한 기능을 함께 지원합니다.
+
+~~~
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+~~~
+
+출처 [https://velog.io/@squarebird/Kubernetes-Replica-Set%EA%B3%BC-Deployment]
+
+Deployment를 생성하는 yaml코드를 보면 ReplicaSet의 yaml코드와 매우 유사한 것을 알 수 있습니다.
+
+## Deployment Update
+
+Deployment는 다양한 방법으로 업데이트를 지원합니다.
+
+1. Rolling Update
+
+먼저 Rolling Update는 별다른 설정을 하지 않을시 기본적으로 적용되는 방식입니다.  
+V1을 V2로 업데이트 할 때, V2를 하나 생성한 뒤 V1을 삭제하는 방식으로 Pod를 하나씩 점진적으로 교체해나가는 방법입니다.  
+
+이 방법은 무중단배포가 가능하다는 장점이 있지만, V1과 V2의 Pod이 공존하는 순간이 있다는 단점이 있습니다.
+
+2. Recreate
+
+두번째는 Recreate 즉 재생성입니다.  
+그림에서 보다시피 기존의 Pod을 모두 삭제한 뒤, 새로운 버전의 Pod을 선언한 갯수만큼 생성해주는 방식입니다.  
+
+단점으로는 순간적으로 Pod이 존재하지 않는 순간이 있다는 점입니다.
+
+3. Blue/Green
+
+세번째는 Blue/Green 배포입니다.  
+Blue/Green 배포는 기존 버전의 Pod을 유지한채로 새로운 버전의 Pod을 선언한 갯수만큼 생성하고 Service가 트래픽을 전달하는 대상을 교체한 뒤 기존의 Pod을 삭제하는 방식입니다.
+
+이 방법은 무중단 배포가 가능하고, 기존에 Rolling Update가 가지고있던 V1, V2가 공존하는 순간이 있는 문제를 해결할 수 있지만, 배포시에 자원을 2배로 사용한다는 단점이 있습니다.
+
+4. Canary
+
+Canary는 테스트라는 특징을 가지고 있는 업데이트 방법입니다.  
+구버전과 신버전 Pod을 모두 구성한 뒤, 트래픽의 양을 조절하여 테스트를 진행한 다음 교체하는 방식입니다.
+
+# 레플리카셋의 등장
+
+쿠버네티스 1.8 버전부터 디플로이먼트, 데몬셋, 레플리카셋, 스테이트풀셋, 네 API 가 베타로 업데이트되고 1.9 버전에서는 정식 버전으로 업데이트 됨  
+레플리카셋은 차데대 레플리케이션컨트롤러로 `레플리케이션컨트롤러를 완전히 대체 가능`  
+초기 쿠버네티스에서 제공했기 때문에 현장에서는 여전히 계속 사용중인 경우 존재  
+일반적으로 레플리카셋을 직접 생성하지 않고 사우이 수준의 디플로이먼트 리소스를 만들 때 자동으로 생성
+
+https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+
+조회 명령어
+
+~~~
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: rs-nginx
+  labels:
+    app: rs-nginx
+spec:
+  # modify replicas according to your case
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rs-nginx
+  template:
+    metadata:
+      labels:
+        app: rs-nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        ports: 
+        - containerPort: 80
+~~~
+
+> kubectl create -f nginx-rc.yaml
+
+replicas 갯수 수정해보기
+
+> kubectl edit rs rs-nginx
+
+# 디플로이먼트
+
+애플리케이션을 다운 타입 없이 업데이트 가능하도록 도와주는 리소스  
+레플리카셋과 레플리케이션컨트롤러 상위에 배포되는 리소스  
+
+모든 포드를 업데이트하는 방법  
+잠깐의 다운 타임 발생 (새로운 포드를 실행시키고 작업이 완료되면 오래된 포드를 삭제)  
+롤링 업데이트
+
+디플로이먼트 작성 요령  
+포드의 metadata 부분과 spec 부분을 그대로 옮김  
+Deployment 의 spec.template 에는 배포할 포드를 설정  
+replicas 에는 이 포드를 몇 개를 배포할지 명시  
+label 은 디플로이먼트가 배포한 포드를 관리하는데 사용됨  
+
+~~~
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+~~~
+
+스케일링 
+
+> kubectl edit deploy nginx-deployment
+
