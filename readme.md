@@ -1398,3 +1398,67 @@ spec:
 
 yaml 파일로 제작이 가능한 파일로 추출이 가능하다.
 
+# 네임스페이스
+
+리소스를 각각의 분리된 영역으로 나누기 좋은 방법  
+여러 네임스페이스를 사용하면 복잡한 쿠버네티스 시스템을 더 작은 그룹으로 분할  
+멀티 테넌트(Multi-tenant) 환격을 분리하여 리소스를 생산, 개발, QA 환경 등으로 사용  
+리소스 이름은 네임스페이스 내에서만 고유 명칭 사용
+
+현재 클러스터의 기본 네임스페이스 확인하기  
+> kubectl get ns
+
+## 각 네임스페이스 상세 내용 확인
+
+kubectl get 을 옵션없이 사용하면 default 네임스페이스에 질의  
+다른 사용자와 분리된 환경으로 타인의 접근을 제한  
+네임스페이스 별로 리소스 접근 허용과 리소스 양도 제어 가능  
+--namespace 나 -n 을 사용하여 네임스페이스 별로 확인이 가능
+
+> kubectl get po --namespace kube-system
+
+## YAML 파일로 네임스페이스 만들기
+
+test_ns.yaml 파일을 생성하고 create 를 사용하여 생성
+
+~~~
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-ns
+~~~
+
+> kubectl create -f test_ns.yaml
+
+## 전체 네임스페이스 조회
+
+> kubectl get pod --all-namespaces
+
+## 네임스페이스 만들기 연습
+
+> kubectl create ns test
+
+혹은
+
+> kubectl create ns test --dry-run=client -o yaml > test.yaml
+
+다른 네임스페이스에서 실행하는 명령어 와 조회하는 명령어
+
+> kubectl create deploy nginx --image nginx -n test
+> kubectl get all -n test
+
+기본 실행을 추가된 네임스페이스로 기본으로 설정하는 방법
+
+> vim ~/.kube/config
+
+~~~
+- context:
+    cluster: kubernetes
+    user: kubernetes-admin
+    namespace: test
+~~~
+
+네임스페이스 삭제 명령어
+
+> kubectl delete ns test
+
