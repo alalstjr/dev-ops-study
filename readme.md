@@ -347,6 +347,9 @@ pod 삭제 & 모두삭제
 쿠버네티스 파일 실행
 > kubectl create -f {파일이름}
 
+쿠버네티스 파일 실행 - 로그기록
+> kubectl create -f {파일이름} --record=true
+
 쿠버네티스 pod 진행상황 상세보기
 > kubectl describe pod {pod 이름}
 
@@ -1222,4 +1225,176 @@ spec:
 스케일링 
 
 > kubectl edit deploy nginx-deployment
+
+# 애플리케이션 롤링 업데이트와 롤백
+
+새로운 포드를 실행시키고 작업이 완료되면 오래된 포드를 삭제  
+새 버전들 실행하는 동안 구 버전 포드와 연결  
+서비스의 레이블섹렉터를 수정하여 간단하게 수정가능
+
+- Rolling Update
+  - 오래된 포드를 하나씩 제거하는 동시에 새로운 포드 추가
+  - 요청을 처리할 수 있는 양은 그대로 유지
+  - 반드시 이전 버전과 새 버전을 동시에 처리 가능하도록 설계한 경우에만 사용해야 함
+- Recreate
+  - 새 포드를 만들기 전에 이전 포드를 모두 삭제
+  - 여러 버전을 동시에 실행 불가능
+  - 잠깐의 다운 타임 존재
+- 업데이트 과정을 보기 위해 업데이트 속도 조절
+  - kubectl patch deployment http-go -p '{"spec": {"minReadySeconds": 10}}'
+
+## 디플로이먼트 업데이트 실행
+
+새로운 터미널을 열어 이미지 업데이트 실행  
+> kubectl set image deployment http-go http-go=gasbugs/http-go:v2
+
+모니터링하는 시스템에서 관찰
+> while true; curl <ip>; sleep 1; done
+
+업데이트한 이력을 확인  
+리비전의 개수는 디폴트로 10개까지 저장  
+
+> kubectl rollout history deployment http-go
+
+## 롤백 실행하기
+
+롤백을 실행하면 이전 업데이트 상태로 돌아감  
+롤백을 하여도 히스토리의 리비전 상태는 이전 상태로 돌아가지 않음  
+
+> kubectl set image deployment http-go http-go=gasbugs/http-go:v3
+
+> kubectl rollout undo deployment http-go
+
+> kubectl exec http-go-{code} curl {ip}:{port}
+
+특정 버전으로 돌아가는 명령어
+> kubectl rollout undo deployment http-go --ro-revision=1
+
+## 롤링 업데이터 전략 세부 설정
+
+- maxSurge
+  - 기본값 25% 개수로도 설정이 가능
+  - 최대로 추가 배포를 허용할 개수 설정
+  - 4개인 경우 25%이면 1개가 설정 (총 개수 5개까지 동시 포드 운영)
+- maxUnavailable
+  - 기본값 25% 개수로도 설정이 가능
+  - 동작하지 않는 포드의 개수 설정
+  - 4개인 경우 25% 이면 1개가 설정 (총 개수 4-1개는 운영해야 함)
+
+## 롤라웃 일시중지와 재시작
+
+- 업데이트 중에 일시정지하길 원하는 경우
+  - kubectl rollout pause deployment {name}
+- 업데이트 일시중지 중 취소
+  - kubectl rollout undo deployment {name}
+- 업데이트 재시작
+  - kubectl rollout resume deployment {name}
+
+## 업데이트를 실패하는 경우
+
+- 부족한 할당량 (Insufficient quota)
+- 레디네스 프로브 실패 (Readiness probe failures)
+- 이미지 가져오기 오류 (image pull errors)
+- 권한 부족 (Insufficient permissions)
+- 제한 범위 (Limit ranges)
+- 응용 프로그램 런타임 구성 오류 (Application runtime misconfiguration)
+
+업데이트를 실패하는 경우에는 기본적으로 600초 후 업데이트를 중지한다.
+
+~~~
+spec:
+  processDeadlineSeconds: 600
+~~~
+
+## 롤링 업데이트 실습
+
+~~~
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: http-go
+  labels:
+    app: http-go
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: http-go
+  template:
+    metadata:
+      labels:
+        app: http-go
+    spec:
+      containers:
+      - name: http-go
+        image: gasbugs/http-go:v1
+        ports:
+        - containerPort: 8080
+~~~
+
+> kubectl create -f http-go-deploy-v1.yaml --record=true
+
+명령어로 실행해줍니다.
+
+> kubectl describe deploy http-go
+
+진행 사항을 확인합니다.
+
+> kubectl get deploy http-go -o yaml
+
+설정을 확인합니다.
+
+> kubectl rollout status deploy http-go
+> kubectl rollout history deploy http-go
+
+상태와 기록을 확인하는 명령어
+
+> kubectl patch deploy http-go -p '{"spec": {"minReadySeconds": 10}}'
+
+10초의 제한 시간을 주고 업데이트를 진행하도록 수정합니다.
+
+> kubectl expose deploy http-go
+
+외부에 노출시켜줍니다.
+
+> kubectl get svc
+
+노출중인 서비스 확인
+
+> kubectl run -it --rm --image busybox -- bash
+> while true; do wget -O- -q {ip}:{port}; sleep 1; done
+
+내부로 들어가서 실시간 확인 명령어 실행  
+새로운 터미널 생성 후 업데이트 진행을 해보겠다.
+
+> kubectl set image deploy http-go http-go=gasbugs/http-go:v2 --record=true
+> kubectl get pod -w
+
+실시간으러 바뀌는 상황을 확인해보자
+
+> kubectl rollout history deploy http-go
+
+업데이트 내역을 확인할 수 있다.
+
+> kubectl rollout undo deploy http-go
+
+이전 버전으로 되돌리는 명령어를 실행합니다.
+
+> kubectl rollout history deploy http-go
+
+명령어로 내역을 확인하면 이전으로 돌아간것을 확인할 수 있습니다.
+
+> kubectl rollout undo deploy http-go --to-revision=1
+
+특정 버전으로 돌아갈 수 도 있습니다.
+
+# 롤링 업데이트와 롤백 연습
+
+> kubectl create deploy --image alpine:3.4 alpine-deploy --dry-run=client
+
+문법이 맞는지 확인해주는 명령어
+
+> kubectl create deploy --image alpine:3.4 alpine-deploy --dry-run=client -o yaml > alpine-deploy.yaml
+
+yaml 파일로 제작이 가능한 파일로 추출이 가능하다.
 
