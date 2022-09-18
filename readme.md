@@ -1462,3 +1462,107 @@ metadata:
 
 > kubectl delete ns test
 
+# 서비스
+
+- 포드의 문제점
+  - 포드는 일시적으로 생성한 컨테이너의 집합
+  - 때문에 포드가 지속적으로 생겨났을 때 서비스를 하기에 적합하지 않음
+  - IP 주소의 지속적인 변동, 로드밸런싱을 관리해줄 또 다른 개체가 필요
+  - 이 문제를 해결하기위해 서비스라는 리소스가 존재
+
+- 서비스의 요구사항
+  - 외부 클라이언트가 몇 개이든지 프론트엔드 포드로 연결
+  - 프론트엔드는 다시 백엔드 데이터베이스로 연결
+  - 포드의 IP 가 변경될 때마다 재설정 하지 않도록 해야함
+
+## 서비스의 생성방법
+
+kubectl 의 expose 가 가장 쉬운방법  
+YAML 을 통해 버전 관리 가능 
+
+~~~
+apiVersion: v1
+kind: Service
+metadata:
+  name: http-go-svc
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+    selector:
+      app: http-go
+~~~
+
+## 서비스의 세션 고정하기
+
+서비스가 다수의 포드로 구성하면 웹서비스의 세션이 유지되지 않음  
+이를 위해 처음 들어왔던 클라이언트 IP를 그대로 유지해주는 방법이 필요  
+sessionAffinity: ClientIP 라는 옵션을 주면 해결 완료  
+
+~~~
+apiVersion: v1
+kind: Service
+metadata:
+  name: http-go-svc
+spec:
+  sessionAffinity: ClientIP
+  ports:
+    - port: 80
+      targetPort: 8080
+    selector:
+      app: http-go
+~~~
+
+## 다중 포드 서비스 방법
+
+포트에 그대로 나열해서 사용
+
+~~~
+apiVersion: v1
+kind: Service
+metadata:
+  name: http-go-svc
+spec:
+  sessionAffinity: ClientIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+    - name: https
+      port: 443
+      targetPort: 8443
+    selector:
+      app: http-go
+~~~
+
+## 서비스하는 IP 정보 확인
+
+> kubectl describe svc {name}
+
+## 외부 IP 연결 설정 YAML
+
+service 와 Endpoints 리소스 모두 생성 필요
+
+~~~
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-service
+spec:
+  ports:
+  - port: 80
+~~~
+
+~~~
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: external-service
+subsets:
+  - addresses:
+    - ip: 11.11.11.11
+    - ip: 22.22.22.22
+    ports:
+    - port: 80
+~~~
+
