@@ -1566,3 +1566,60 @@ subsets:
     - port: 80
 ~~~
 
+## 실습 해보기
+
+> kubectl create deploy --image gasbugs/http-go http-go --dry-run=client -o yaml > http-go-deploy.yaml
+
+~~~
+apiVersion: v1
+kind: Service
+metadata:
+  name: http-go-svc
+spec:
+  selector:
+    run: http-go
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: http-go
+  name: http-go
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: http-go
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: http-go
+    spec:
+      containers:
+      - image: gasbugs/http-go
+        name: http-go
+        resources: {}
+status: {}
+~~~
+
+> kubectl create -f http-go-deploy.yaml
+> kubectl describe svc
+> kubectl scale deploy http-go --replicas=5
+> kubectl edit svc http-go-svc
+
+# 엔드포인트
+
+엔드포인트 역할  
+쿠버네티스의 서비스 기능을 사용하면 외부 서비스와도 연결이 가능  
+외부 서비스와 연결을 수행할 때는 서비스의 endpoint 를 레이블을 사용해 지정하는 것이 아니라  
+외부 ip 를 직접 endpoint 라는 별도의 자원에서 설정
+
