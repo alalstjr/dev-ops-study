@@ -1746,3 +1746,61 @@ spec:
           protocol: TCP
 EOF
 ~~~
+
+## ETCD
+
+key-value 를 저장할 수 있는 데이터 베이스  
+
+[etcd install](https://github.com/etcd-io/etcd/releases)
+
+> tar -xf etcd-v3.5.6-linux-amd64.tar.gz
+
+폴더 안에 etcdctl 명령이 존재
+
+~~~
+sudo ETCDCTL_API=3 ./etcdctl 
+--endpoints 127.0.0.1:2379 
+--cacert /etc/kubernetes/pki/etcd/ca.crt   # SSL 통신을 위해서 인증파일 필요
+--cert /etc/kubernetes/pki/etcd/server.crt 
+--key /etc/kubernetes/pki/etcd/server.key 
+get / 
+--prefix
+--keys-only
+~~~
+
+~~~
+sudo ETCDCTL_API=3 ./etcdctl 
+--endpoints 127.0.0.1:2379 
+--cacert /etc/kubernetes/pki/etcd/ca.crt
+--cert /etc/kubernetes/pki/etcd/server.crt 
+--key /etc/kubernetes/pki/etcd/server.key
+~~~
+
+여기 까지가 통신에 필요한 옵션입니다.  
+그 다음부터는 명령어입니다.
+
+예시로 데이터를 저장하고 불러오는 명령어 입니다.
+
+저장
+~~~
+sudo ETCDCTL_API=3 ./etcdctl 
+--endpoints 127.0.0.1:2379 
+--cacert /etc/kubernetes/pki/etcd/ca.crt
+--cert /etc/kubernetes/pki/etcd/server.crt 
+--key /etc/kubernetes/pki/etcd/server.key
+put key1 value1
+~~~
+
+불러오기
+~~~
+sudo ETCDCTL_API=3 ./etcdctl 
+--endpoints 127.0.0.1:2379 
+--cacert /etc/kubernetes/pki/etcd/ca.crt
+--cert /etc/kubernetes/pki/etcd/server.crt 
+--key /etc/kubernetes/pki/etcd/server.key
+get key1
+~~~
+
+![ETCD 데이터베이스 구조](./img/etcd_01.png)
+
+쿠버네티스에서 필요한 데이터들을 ETCD 안에 백업하고 필요한 경우 외부에서 가져와 사용하고 있습니다.
