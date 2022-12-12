@@ -1804,3 +1804,106 @@ get key1
 ![ETCD 데이터베이스 구조](./img/etcd_01.png)
 
 쿠버네티스에서 필요한 데이터들을 ETCD 안에 백업하고 필요한 경우 외부에서 가져와 사용하고 있습니다.
+
+# 쿠버네티스 네트워크
+
+## 서비스와 ClusterIP 소개
+
+- 포드의 문제점
+  - 포드는 일시적으로 생성한 컨테이너의 집합
+  - 때문에 포드가 지속적으로 생겨났을 때 서비스를 하기에 적합하지 않음
+  - IP 주소의 지속적인 변동, 로드밸런싱을 관리해줄 또 다른 개체가 필요
+  - 이 문제를 해결하기위해 서비스라는 리소스가 존재
+
+- 서비스의 요구사항
+  - 외부 클라이언트가 몇 개이든지 프론트엔드 포드로 연결
+  - 프론트엔드는 다시 백엔드 데이터베이스로 연결
+  - 포드의 IP가 변경될 때마다 재설정 하지 않도록 해야함
+
+![서비스의 요구사항](./img/service_01.png)
+
+서비스라는 역할은 로드밸런싱 역할과 포드를 선택하는 역할을 가지고 있습니다.
+
+- 서비스의 생성방법
+  - kubectl 의 expose 가 가장 쉬운 방법
+  - YAML 을 통해 버전 관리 가능
+
+~~~
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  selector:
+    app.kubernetes.io/name: MyApp
+  ports:
+    - protocol: TCP
+      port: 80         # 서비스를 진행하는 포트 값
+      targetPort: 9376 # POD 의 포트 값
+~~~
+
+Service 생성 YAML
+
+- 서비스의 기능 확인
+  - 서비스를 생성하면 EXTERNAL -IP 를 아직 받지 못한 것을 확인
+  - kubectl exec {포드 이름} -- curl 명령어로 확인가능
+  - kubectl exec {pod} --curl 10.12.0.237:80
+
+포드 간의 통신을 위한 ClusterIP
+
+![포드 간의 통신을 위한 ClusterIP](./img/service_02.png)
+
+기본적으로 ClusterIP 라는 것이 만들어 지고  
+위 이미지의 각각의 어플리케이션을 내부에서 서비스 (로드밸런싱) 할 수 있도록  
+외부로는 노출이 안되고 내부에서만 사용하는 용도로 클러스터 IP 를 만들 수 있습니다.  
+
+- 서비스의 세션 고정하기
+  - 서비스가 다수의 포드로 구성하면 웹서비스의 세션이 유지되지 않음
+  - 이를 위해 처음 들어왔던 클라이언트 IP 를 그대로 유지해주는 방법이 필요
+  - sessionAffinity: ClientIP 라는 옵션을 주면 해결 완료!
+
+~~~
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  sessionAffinity: ClientIP  # Session 고정을 할 수 있습니다.
+  selector:
+    app.kubernetes.io/name: MyApp
+  ports:
+    - protocol: TCP
+      port: 80         
+      targetPort: 9376 
+~~~
+
+- 다중 포트 서비스 방법
+  - 포드에 그대로 나열해서 사용
+
+~~~
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  selector:
+    app.kubernetes.io/name: MyApp
+  ports:
+    - name: http
+      port: 80 
+      targetPort: 8080
+    - name: http
+      port: 443
+      targetPort: 8443
+~~~
+
+- 외부 IP 연결 설정 YAML
+  - Service 와 Endpoints 리소스 모두 생성 필요
+
+외부 IP 와 연결 할 때는 Service 와 EndPoint 모두 만들어 줘야 합니다.  
+물론 안에서는 외부로 붙을 수 있긴 하지만  
+내부에서 로드밸런싱 해서 외부로 나가고자 하는 경우 필요합니다.
+온프라미스 환경 이었는데 이전하는 과정 중에 하이브리드 형태로 한쪽은 쿠버네티스 쓰고 한쪽은 온프라미스 사용하여 결합해야 하는 경우 사용  
+
+![외부 IP 연결 설정 YAML](./img/service_03.png)
+![Service 와 Endpoints 연결 구조](./img/service_04.png)
