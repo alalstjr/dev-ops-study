@@ -1907,3 +1907,50 @@ spec:
 
 ![외부 IP 연결 설정 YAML](./img/service_03.png)
 ![Service 와 Endpoints 연결 구조](./img/service_04.png)
+
+## ClusterIP를 활용한 외부 통신 엔드포인트 실습
+
+- 엔드포인트 역할
+  - 쿠버네티스의 서비스 기능을 사용하면 외부 서비스와도 연결이 가능
+  - 외부 서비스와 연결을 수행할 때는 서비스의 endpoint 를 레이블을 사용해 지정하는 것이 아니라
+  - 외부 IP 를 직접 endpoint 라는 별도의 자원에서 설정
+
+- 레이블이 없는 서비스
+  - 다음 도큐먼트에는 이런 레이블이 없는 서비스를 사용하는 사례
+    - https://kubernetes.io/docs/concepts/services-networking/service/#services-without-selectors
+    - 프로덕션 환경에서는 외부 데이터베이스 클러스터를 원하지만 테스트 환경에서는 자체 데이터베이스를 사용하는 경우
+    - 서비스가 다른 네임스페이스 또는 다른 클러스터의 서비스를 가리키는 경우
+    - 워크로드를 Kubernetes 로 마이그레이션하는 경우 (접근 방식을 평가하는 동안 쿠버네티스에서 백엔드의 일부 서비스만 실행)
+
+~~~
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: my-service
+  labels:
+    kubernetes.io/service-name: my-service
+subsets:
+    - addresses:
+        - ip : 223.130.200.104
+        - ip : 199.201.110.204
+      ports:
+        - port: 80
+~~~
+
+POD 없는 서비스를 하나 만들고 엔드포인트를 만듭니다.  
+엔드포인트 정상 동작하는지 테스트 방법
+
+> kubectl run http-go --image=gasbugs/http-go
+> curl my-service
+
+
