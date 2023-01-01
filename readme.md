@@ -1976,7 +1976,7 @@ spec:
   type: NodePort
   ports:
     - protocol: TCP
-      port: 80 # Service 포트
+      port: 80 # 최종적으로 서비스할 Service 포트
       targetPort: 8080 # POD 의 포트
       nodePort: 30000 # 최종적으로 서비스되는 포트
 ~~~
@@ -1994,3 +1994,44 @@ Users (사용자) 들은 마스터 서버에는 붙지 않습니다.
 이유는 어플리케이션을 동작하는 워커 노드에서 동작하고 있기 때문입니다.
 
 사용자가 워커 노드에 접근 후 Kube-Proxy 에서 적절하게 포드에 연결해줍니다.
+
+## 로드밸러서로 서비스하기 실습
+
+- 로드밸런서 생성하기
+  - NodePort 서비스의 확장된 서비스
+  - 클라우드 서비스에서 사용 가능
+  - yaml 파일에서 타입을 NodePort 대신 LoadBalancer 를 설정
+  - 로드 밸런서의 IP 주소를 통해 서비스에 액세스
+
+~~~
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  type: LoadBalancer
+  ports:
+    - protocol: TCP
+      port: 80 # 최종적으로 서비스할 Service 포트
+      targetPort: 8080 # POD 의 포트
+  selecter:
+    app: service
+~~~
+
+![로드밸러서](./img/service_07.png)
+
+## 인그레스(ingress) 소개
+
+- 인그레스의 필요성
+  - 인그레스는 하나의 IP 나 도메인으로 다수의 서비스 제공
+  - 들어오는 도메인 이름이나 URI 따라서 부하분산(포워딩)이 동작합니다.
+
+![인그레스](./img/ingress_01.png)
+
+- 인그레스의 필요성
+  - 프라이빗 환경에서 인그레스를 사용할 수 있는 ingress-nginx 를 설치
+  - 쿠버네티스에 포드 형태로 띄워서 설정하는 방법 확인
+  - nginx-ingress 를 포드로 떠있으면서 다시 서비스로 연결할 수 있는 역할을 수행
+
+![인그레스 Path 룰](./img/ingress_02.png)
+
