@@ -1953,4 +1953,44 @@ POD 없는 서비스를 하나 만들고 엔드포인트를 만듭니다.
 > kubectl run http-go --image=gasbugs/http-go
 > curl my-service
 
+## 외부로 서비스하는 방법들과 노드포트
 
+- 서비스 노출하는 세 가지 방법
+  - NodePort(노드포트): 노드의 자체 포트를 사용하여 포드로 리다이렉션
+    - 물리적인 환경으로 서비스를 제공할 수 있도록 NodePort 지원되는 환경
+  - LoadBalancer(로드벨런서): (L4 장비) 외부 게이트웨이를 사용해 노드 포트로 리다이렉션
+  - Ingress(인그레스): (L7 장비) 하나의 IP 주소를 통해 여러 서비스를 제공하는 특별한 메커니즘
+    - 도메인 이름을 해석해서 서브 도메인이나 도메인 이름이 다르다거나 혹은 디렉토리를 탐지해서 어디로 서비스를 나눠줄지 판단하는 역할
+
+- 노드포트 생성하기
+  - 서비스 yaml 파일 작성 
+  - type 에 NodePort 를 지정 
+  - 30000 - 32767 포트만 사용가능
+
+~~~
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  type: NodePort
+  ports:
+    - protocol: TCP
+      port: 80 # Service 포트
+      targetPort: 8080 # POD 의 포트
+      nodePort: 30000 # 최종적으로 서비스되는 포트
+~~~
+
+![노드포트의 서비스의 패킷 흐름](./img/service_05.png)
+
+외부에서 포트(패킷)가 들어오면 (ClusterIP)iptables 가 있습니다.  
+iptables (리눅스 기능) 설정에 의해서 적절한 POD 로 로드밸런싱 될 수 있도록 해줍니다.
+
+iptables : 들어오는 네트워크 트래픽을 정해진 규칙에 따라 제한하거나 기타 기능들이 있습니다. 윈도우의 방화벽 같은 역할 혹은 특정하게 포워딩을 시켜준다.
+
+![노드포트를 활용한 로드밸런싱](./img/service_06.png)
+
+Users (사용자) 들은 마스터 서버에는 붙지 않습니다.
+이유는 어플리케이션을 동작하는 워커 노드에서 동작하고 있기 때문입니다.
+
+사용자가 워커 노드에 접근 후 Kube-Proxy 에서 적절하게 포드에 연결해줍니다.
