@@ -2035,3 +2035,161 @@ spec:
 
 ![인그레스 Path 룰](./img/ingress_02.png)
 
+## 인그레스(ingress) 실습
+
+https://kubernetes.io/ko/docs/concepts/services-networking/ingress/
+
+~~~
+git clone https://github.com/kubernetes/ingress-nginx/  
+kubectl apply -k `pwd`/ingress-nginx/deploy/static/provider/baremetal/  
+kubectl delete validatingwebhookconfigurations.admissionregistration.k8s.io ingress-nginx-admission  
+~~~
+
+인그레스 설치하면 룰 이 생성됨
+
+ingress 자원을 사용해 룰 생성
+
+~~~
+cat <<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: http-go-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /welcome/test
+spec:
+  rules:
+    - http:
+        paths:
+          - pathType: Exact
+            path: /welcome/test
+            backend:
+              service:
+                name: http-go
+                port: 
+                  number: 80
+EOF
+~~~
+
+서비스를 구성할 수 있는 다음 명령어를 실행한다.
+
+~~~
+```yaml
+kubectl create deployment http-go --image=gasbugs/http-go:ingress # 인그레스 테스트용 http-go
+kubectl expose deployment http-go --port=80 --target-port=8080
+```
+~~~
+
+## 인그레스 TLS 실습 (SSL)
+
+TLS 인증서 생성
+
+~~~
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -out ingress-tls.crt \
+    -keyout ingress-tls.key \
+    -subj "/CN=ingress-tls"
+
+kubectl create secret tls ingress-tls \
+    --namespace default \
+    --key ingress-tls.key \
+    --cert ingress-tls.crt
+~~~
+
+secret 이라는 별도의 저장소에 key, crt 파일을 등록시킵니다.
+
+TLS 인증서를 사용하는 ingress 생성
+
+~~~
+cat <<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: http-go-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /welcome/test
+    nginx.ingress.kubernetes.io/ssl-redirect: "true" # 80 포트로 접속시 자동으로 리다이랙트 해주는 역할
+spec:
+  tls:
+  - hosts:
+    - gasbugs.com
+    secretName: ingress-tls
+  rules:
+    - host: gasbugs.com
+      http:
+        paths:
+          - pathType: Exact
+            path: /welcome/test
+            backend:
+              service:
+                name: http-go
+                port: 
+                  number: 80
+EOF
+~~~
+
+## 인그레스 연습문제
+
+~~~
+kubectl delete all --all
+
+# http-go 디플로이먼트/서비스 생성
+kubectl create deploy http-go --image=gasbugs/http-go 
+kubectl expose deploy http-go --port=80 --target-port=8080
+
+# 톰캣 디플로이먼트/서비스 생성
+kubectl create deploy tomcat --image=consol/tomcat-7.0 
+kubectl expose deploy tomcat --port=80 --target-port=8080
+
+# TLS 인증서 생성
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -out gasbugs-tls.crt \
+    -keyout gasbugs-tls.key \
+    -subj "/CN=ingress-tls"
+
+# tls 인증서를 통해 secret을 구성
+kubectl create secret tls gasbugs-tls \
+    --namespace default \
+    --key gasbugs-tls.key \
+    --cert gasbugs-tls.crt
+
+cat <<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: http-go-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  tls:
+  - hosts:
+    - tomcat.gasbugs.com    
+    - http-go.gasbugs.com
+    secretName: gasbugs-tls
+  rules:
+    - host: http-go.gasbugs.com
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: http-go
+                port: 
+                  number: 80
+    - host: tomcat.gasbugs.com
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: tomcat
+                port: 
+                  number: 80
+EOF
+~~~
